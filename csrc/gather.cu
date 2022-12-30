@@ -319,13 +319,13 @@ __global__ void k_fill_grad(float *grads, const float *log_probs,
         // blank
         grads[IDX3(n, i + shift, shift + 1, T, U) << 1] =
             -expf(alphas[IDX3(n, i, s, sT, sU)] + betas[IDX3(n, i, s, sT, sU)] -
-                  2 * log_probs[IDX3(n, i + shift, shift + 1, T, U) << 1] -
+                  log_probs[IDX3(n, i + shift, shift + 1, T, U) << 1] -
                   betas[IDX3(n, 0, 0, sT, sU)]);
     else
         // label
         grads[(IDX3(n, i + shift, shift, T, U) << 1) + 1] =
             -expf(alphas[IDX3(n, i, s, sT, sU)] + betas[IDX3(n, i, s, sT, sU)] -
-                  2 * log_probs[(IDX3(n, i + shift, shift, T, U) << 1) + 1] -
+                  log_probs[(IDX3(n, i + shift, shift, T, U) << 1) + 1] -
                   betas[IDX3(n, 0, 0, sT, sU)]);
 }
 
