@@ -10,7 +10,6 @@ if not torch.cuda.is_available():
 
 requirements = [
     "pybind11",
-    "numpy",
     "torch>=1.11.0"
 ]
 
@@ -18,7 +17,7 @@ setup(
     name="warp_ctct",
     version="0.1.0",
     description="PyTorch bindings for CUDA-Warp CTC-Transducer",
-    url="",
+    url="https://github.com/maxwellzh/warp-ctct",
     author="Huahuan Zheng",
     author_email="maxwellzh@outlook.com",
     license="MIT",
