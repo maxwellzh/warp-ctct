@@ -83,7 +83,7 @@ ctct_loss_fwd(const torch::Tensor &log_probs, const torch::Tensor &ys,
         (const int *)ly.data_ptr<int>(), (int *)counts.data_ptr<int>(), N, T, U,
         sT, !requires_grad);
 
-    auto costs = -betas.index({None, 0, 0});
+    auto costs = -betas.index({Slice(), 0, 0});
     if (requires_grad) {
         auto grads = torch::zeros_like(log_probs);
         run_fill_grad((float *)grads.data_ptr<float>(),

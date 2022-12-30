@@ -30,7 +30,7 @@ class CTCTLoss(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_outputs: T):
         (grads,) = ctx.saved_tensors
-        return grad_outputs*grads, None, None, None, None
+        return grad_outputs.view(-1, 1, 1, 1)*grads, None, None, None, None
 
 
 def ctct_loss(log_probs: torch.FloatTensor,
@@ -72,8 +72,9 @@ def ctct_loss(log_probs: torch.FloatTensor,
     N, T, U = log_probs.shape[:3]
     index = F.pad(labels, (0, 1), value=0).view(
         N, 1, U, 1).expand(-1, T, -1, -1)
-
+    index = F.pad(index, (1, 0), value=0)
     log_probs = log_probs.gather(dim=-1, index=index.long())
+
     enable_grad = (log_probs.requires_grad and torch.is_grad_enabled())
     with autocast(enabled=False):
         costs = CTCTLoss.apply(log_probs.float(), labels.to(torch.int), frames_lengths.to(
