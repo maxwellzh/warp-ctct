@@ -70,10 +70,12 @@ def ctct_loss(log_probs: torch.FloatTensor,
 
     # gather blank and label
     N, T, U = log_probs.shape[:3]
-    index = F.pad(labels, (0, 1), value=0).view(
-        N, 1, U, 1).expand(-1, T, -1, -1)
-    index = F.pad(index, (1, 0), value=0)
-    log_probs = log_probs.gather(dim=-1, index=index.long())
+    index = torch.full((N, U, 2), fill_value=0,
+                       device=log_probs.device, dtype=torch.long)
+    index[:, :U-1, 1] = labels
+    index = index.unsqueeze(1).expand(-1, T, -1, -1)
+
+    log_probs = log_probs.gather(dim=-1, index=index)
 
     enable_grad = (log_probs.requires_grad and torch.is_grad_enabled())
     with autocast(enabled=False):

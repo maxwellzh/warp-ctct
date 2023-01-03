@@ -314,19 +314,25 @@ __global__ void k_fill_grad(float *grads, const float *log_probs,
         return;
     }
     int sU = 2 * U + 1;
-    int shift = (s - 1) / 2;
-    if (s % 2 == 0)
+    U += 1;
+    int shift = (s > 0) ? (s - 1) / 2 : -1;
+    if (s % 2 == 0) {
         // blank
-        grads[IDX3(n, i + shift, shift + 1, T, U) << 1] =
-            -expf(alphas[IDX3(n, i, s, sT, sU)] + betas[IDX3(n, i, s, sT, sU)] -
-                  log_probs[IDX3(n, i + shift, shift + 1, T, U) << 1] -
-                  betas[IDX3(n, 0, 0, sT, sU)]);
-    else
+        if (i == 0)
+            return;
+        else {
+            grads[IDX3(n, i + shift, shift + 1, T, U) << 1] = -expf(
+                alphas[IDX3(n, i, s, sT, sU)] + betas[IDX3(n, i, s, sT, sU)] -
+                log_probs[IDX3(n, i + shift, shift + 1, T, U) << 1] -
+                betas[IDX3(n, 0, 0, sT, sU)]);
+        }
+    } else {
         // label
         grads[(IDX3(n, i + shift, shift, T, U) << 1) + 1] =
             -expf(alphas[IDX3(n, i, s, sT, sU)] + betas[IDX3(n, i, s, sT, sU)] -
                   log_probs[(IDX3(n, i + shift, shift, T, U) << 1) + 1] -
                   betas[IDX3(n, 0, 0, sT, sU)]);
+    }
 }
 
 void run_fill_grad(float *grads, const float *log_probs, const float *alphas,
