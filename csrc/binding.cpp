@@ -49,8 +49,8 @@ ctct_loss_fwd(const torch::Tensor &log_probs, const torch::Tensor &ys,
     CHECK_CUDA(ly);
     // check shape
     TORCH_CHECK(log_probs.dim() == 4, "log probs must have 4 dims.")
-    TORCH_CHECK(log_probs.size(3) == 2,
-                "log probs should be first gathered to length 2 at last dim.")
+    TORCH_CHECK(log_probs.size(3) == 3,
+                "log probs should be first gathered to length 3 at last dim.")
     TORCH_CHECK(ys.dim() == 2, "targets must have 2 dims.")
     TORCH_CHECK(lx.dim() == 1, "lx must have only 1 dim.")
     TORCH_CHECK(ly.dim() == 1, "ly must have only 1 dim.")
@@ -88,6 +88,7 @@ ctct_loss_fwd(const torch::Tensor &log_probs, const torch::Tensor &ys,
         auto grads = torch::zeros_like(log_probs);
         run_fill_grad((float *)grads.data_ptr<float>(),
                       (const float *)log_probs.data_ptr<float>(),
+                      (const int *)ys.data_ptr<int>(),
                       (const float *)alphas.data_ptr<float>(),
                       (const float *)betas.data_ptr<float>(),
                       (const int *)lx.data_ptr<int>(),
