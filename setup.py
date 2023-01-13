@@ -15,7 +15,7 @@ requirements = [
 
 setup(
     name="warp_ctct",
-    version="0.1.0",
+    version="0.2.0",
     description="PyTorch bindings for CUDA-Warp CTC-Transducer",
     url="https://github.com/maxwellzh/warp-ctct",
     author="Huahuan Zheng",
@@ -27,7 +27,8 @@ setup(
             name="warp_ctct._C",
             sources=[
                 "csrc/binding.cpp",
-                "csrc/gather.cu"
+                "csrc/gather.cu",
+                "csrc/simple.cu"
             ]
         )
     ],

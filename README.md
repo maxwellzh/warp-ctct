@@ -18,6 +18,9 @@ Basically, what we call **CTC-T** (CTC Transducer) is a combination of RNN-T and
 
 Please refer to the python module entry: `warp_ctct/__init__.py`
 
+- `ctct_loss()`: standard CTC-T loss.
+- `ctct_simple_loss()`: CTC-T loss given log-add joiner without normalization.
+
 ## Requirements
 
 - C++14 compiler (tested with GCC 7.5).

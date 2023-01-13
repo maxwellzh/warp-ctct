@@ -203,6 +203,23 @@ def ref_bw_shift(log_probs: T, ys: T):
     return betas, betas[0, 0]
 
 
+def collect_separate(f: T, g: T, ys: T):
+    N, T = f.shape[:2]
+    U = g.shape[1]
+    # collect f: (N, T, V) -> (N, T, U), U = 1 + (U-1) = blank + labels
+    index = torch.empty((N, T, U), device=f.device, dtype=torch.long)
+    index[..., 0].fill_(0)
+    index[..., 1:] = ys.unsqueeze(1).expand(-1, T, -1)
+    collect_f = f.gather(dim=-1, index=index)
+
+    # collect g: (N, U, V) -> (N, U, 3), 3: 0 blank, 1 cur label, 2 next label
+    index = torch.full((N, U, 3), fill_value=0,
+                       device=f.device, dtype=torch.long)
+    index[:, 1:, 1] = ys
+    index[:, :U-1, 2] = ys
+    return collect_f, g.gather(dim=-1, index=index)
+
+
 def collect_units(log_probs: T, ys: T):
     N, T, U = log_probs.shape[:3]
     index = torch.full((N, U, 3), fill_value=0,
