@@ -8,7 +8,7 @@ The CTC is first proposed by Alex Graves, et, al. ([Connectionist Temporal Class
 In frame alignment, CTC and RNN-T are similar, but different:
 
 - CTC: remove consecutive repeated tokens then remove blanks (`a <b> a a <b> b b -> a a b`);
-- RNN-T: remove blanks (`a a <b> b c -> a b c`).
+- RNN-T: remove blanks (`a a <b> b c -> a a b c`).
 
 Basically, what we call **CTC-T** (CTC Transducer) is a combination of RNN-T and CTC, which considers label context like RNN-T and does frame alignment like CTC. The idea is also referred in literature ([Sequence Transduction with Graph-based Supervision](https://arxiv.org/abs/2111.01272) and [An Investigation of Monotonic Transducers for Large-Scale Automatic Speech Recognition](https://arxiv.org/abs/2204.08858) draws a pretty lattice figure.)
 
@@ -28,7 +28,7 @@ Please refer to the python module entry: `warp_ctct/__init__.py`
 
 ## Install
 
-The following setup instructions compile the package from the source code locally.
+The following setup instructions compile the package from the source code.
 
 ```bash
 # install from github
