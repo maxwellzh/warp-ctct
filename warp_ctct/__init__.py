@@ -49,11 +49,11 @@ class SimpleLoss(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_outputs: T):
         (grad_f, grad_g) = ctx.saved_tensors
-        grad_outputs = grad_outputs.view(-1, 1, 1, 1)
+        grad_outputs = grad_outputs.view(-1, 1, 1)
         if grad_f is not None:
-            grad_f = grad_outputs*grad_f
+            grad_f *= grad_outputs
         if grad_g is not None:
-            grad_g = grad_outputs*grad_g
+            grad_g *= grad_outputs
         return grad_f, grad_g, None, None, None, None, None
 
 
