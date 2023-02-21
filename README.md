@@ -10,7 +10,7 @@ In frame alignment, CTC and RNN-T are similar, but different:
 - CTC: remove consecutive repeated tokens then remove blanks (`a <b> a a <b> b b -> a a b`);
 - RNN-T: remove blanks (`a a <b> b c -> a a b c`).
 
-Basically, what we call **CTC-T** (CTC Transducer) is a combination of RNN-T and CTC, which considers label context like RNN-T and does frame alignment like CTC. The idea is also referred in literature ([Sequence Transduction with Graph-based Supervision](https://arxiv.org/abs/2111.01272) and [An Investigation of Monotonic Transducers for Large-Scale Automatic Speech Recognition](https://arxiv.org/abs/2204.08858) draws a pretty lattice figure.)
+Basically, what we call **CTC-T** (CTC Transducer) is a combination of RNN-T and CTC, which considers label context like RNN-T and does frame alignment like CTC. The idea is also referred in literature ([Sequence Transduction with Graph-based Supervision](https://arxiv.org/abs/2111.01272) and [An Investigation of Monotonic Transducers for Large-Scale Automatic Speech Recognition](https://arxiv.org/abs/2204.08858))
 
 <img src="assets/ctc_t_lattice.png" width=400px/>
 
@@ -19,7 +19,7 @@ Basically, what we call **CTC-T** (CTC Transducer) is a combination of RNN-T and
 Please refer to the python module entry: `warp_ctct/__init__.py`
 
 - `ctct_loss()`: standard CTC-T loss.
-- `ctct_simple_loss()`: CTC-T loss given log-add joiner without normalization.
+- `ctct_simple_loss()`: CTC-T loss given log-add joiner.
 
 ## Requirements
 

@@ -7,7 +7,7 @@ blank = 0
 import torch
 import torch.nn.functional as F
 import warp_ctct._C as core
-from typing import Literal
+from typing import Literal, Any
 from pkg_resources import get_distribution
 from torch.cuda.amp import autocast
 
@@ -33,28 +33,56 @@ class CTCTLoss(torch.autograd.Function):
         return grad_outputs.view(-1, 1, 1, 1)*grads, None, None, None, None
 
 
-class SimpleLoss(torch.autograd.Function):
+class LogMMExp(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, f: T, g: T, labels: T, lx: T, ly: T, rg_f: bool, rg_g: bool):
-        costs, grad_f, grad_g = core.ctct_loss_simple_fwd(
-            f, g, labels, lx, ly, (rg_f or rg_g)
+    def forward(ctx: Any, lhs: torch.Tensor, rhs: torch.Tensor, track_l: bool = True, track_r: bool = True) -> torch.Tensor:
+        mm = core.log_matmul(lhs, rhs)
+
+        if track_l or track_r:
+            ctx.save_for_backward(lhs, rhs, mm)
+            ctx.track = [track_l, track_r]
+        return mm
+
+    @staticmethod
+    def backward(ctx: Any, grad_outputs: torch.Tensor) -> Any:
+        lhs, rhs, res = ctx.saved_tensors
+
+        grad_lhs, grad_rhs = core.log_matmul_backward(
+            grad_outputs, lhs, rhs, res, ctx.track)
+        return grad_lhs, grad_rhs, None, None
+
+
+class SimpleCTCTLoss(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, f: T, g: T, den: T, labels: T, lx: T, ly: T, rg_f: bool, rg_g: bool):
+        if den is None:
+            den = torch.empty(1)
+
+        costs, grad_f, grad_g, grad_den = core.ctct_loss_simple_fwd(
+            f, g, labels, den, lx, ly, (rg_f or rg_g)
         )
+
         if not rg_f:
             grad_f = None
         if not rg_g:
             grad_g = None
-        ctx.save_for_backward(grad_f, grad_g)
+        if not (den.dim() == 3 and (rg_f or rg_g)):
+            grad_den = None
+
+        ctx.save_for_backward(grad_f, grad_g, grad_den)
         return costs
 
     @staticmethod
     def backward(ctx, grad_outputs: T):
-        (grad_f, grad_g) = ctx.saved_tensors
+        grad_f, grad_g, grad_den = ctx.saved_tensors
         grad_outputs = grad_outputs.view(-1, 1, 1)
         if grad_f is not None:
             grad_f *= grad_outputs
         if grad_g is not None:
             grad_g *= grad_outputs
-        return grad_f, grad_g, None, None, None, None, None
+        if grad_den is not None:
+            grad_den *= grad_outputs
+        return grad_f, grad_g, grad_den, None, None, None, None, None
 
 
 def ctct_loss(log_probs: torch.FloatTensor,
@@ -125,7 +153,8 @@ def ctct_simple_loss(f: torch.FloatTensor,
                      frames_lengths: torch.IntTensor,
                      labels_lengths: torch.IntTensor,
                      reduction: Literal['none', 'mean', 'sum'] = 'mean',
-                     average_frames: bool = False) -> torch.Tensor:
+                     average_frames: bool = False,
+                     normalized: bool = True) -> torch.Tensor:
     """The CUDA-Warp CTC-Transducer simple loss.
 
     Args:
@@ -160,6 +189,18 @@ def ctct_simple_loss(f: torch.FloatTensor,
     N, T = f.shape[:2]
     U = g.size(1)
 
+    track_f = f.requires_grad and torch.is_grad_enabled()
+    track_g = g.requires_grad and torch.is_grad_enabled()
+    # cal den if normalized
+    if normalized:
+        den = LogMMExp.apply(
+            f.float(),
+            g.float().transpose(1, 2),
+            track_f, track_g
+        )
+    else:
+        den = None
+
     # collect f: (N, T, V) -> (N, T, U), U = 1 + (U-1) = blank + labels
     index = torch.empty((N, T, U), device=f.device, dtype=torch.long)
     index[..., 0].fill_(0)
@@ -174,13 +215,13 @@ def ctct_simple_loss(f: torch.FloatTensor,
     g = g.gather(dim=-1, index=index)
 
     with autocast(enabled=False):
-        costs = SimpleLoss.apply(
-            f.float(), g.float(),
+        costs = SimpleCTCTLoss.apply(
+            f.float(), g.float(), den,
             labels.to(torch.int),
             frames_lengths.to(torch.int),
             labels_lengths.to(torch.int),
-            f.requires_grad and torch.is_grad_enabled(),
-            g.requires_grad and torch.is_grad_enabled()
+            track_f,
+            track_g
         )
 
     if average_frames:

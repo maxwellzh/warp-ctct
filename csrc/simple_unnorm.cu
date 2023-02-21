@@ -18,12 +18,11 @@
 // v = 1: label at u
 // v = 2: label at u+1
 #define LOGPROBY(n, t, u, v, T, U)                                             \
-    (f[IDX3(n, t, (u) + ((v)-1), T, U)] + g[IDX3(n, u, v, U, 3)] -             \
-     den[IDX3(n, t, u, T, U)])
+    (f[IDX3(n, t, (u) + ((v)-1), T, U)] + g[IDX3(n, u, v, U, 3)])
 
 // for blank token
 #define LOGPROBB(n, t, u, T, U)                                                \
-    (f[IDX3(n, t, 0, T, U)] + g[IDX3(n, u, 0, U, 3)] - den[IDX3(n, t, u, T, U)])
+    (f[IDX3(n, t, 0, T, U)] + g[IDX3(n, u, 0, U, 3)])
 
 __forceinline__ __device__ static void logaddexpf_(volatile float &a, float b) {
     float tmp = a - b;
@@ -36,9 +35,9 @@ __forceinline__ __device__ static void logaddexpf_(volatile float &a, float b) {
 }
 
 __global__ void k_warp_alphas(volatile float *alphas, const float *f,
-                              const float *g, const float *den, const int *ys,
-                              const int *lx, const int *ly, int *counts, int N,
-                              int T, int U, int sT) {
+                              const float *g, const int *ys, const int *lx,
+                              const int *ly, int *counts, int N, int T, int U,
+                              int sT) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int s = blockIdx.y;
     int n = blockIdx.z;
@@ -191,9 +190,9 @@ __global__ void k_warp_alphas(volatile float *alphas, const float *f,
 }
 
 __global__ void k_warp_betas(volatile float *betas, const float *f,
-                             const float *g, const float *den, const int *ys,
-                             const int *lx, const int *ly, int *counts, int N,
-                             int T, int U, int sT) {
+                             const float *g, const int *ys, const int *lx,
+                             const int *ly, int *counts, int N, int T, int U,
+                             int sT) {
 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int s = blockIdx.y;
@@ -301,29 +300,28 @@ __global__ void k_warp_betas(volatile float *betas, const float *f,
 }
 
 void run_warp_ctct_simple(float *alphas, float *betas, const float *f,
-                          const float *g, const float *den, const int *ys,
-                          const int *lx, const int *ly, int *counts, int N,
-                          int T, int U, int sT, bool beta_only) {
+                          const float *g, const int *ys, const int *lx,
+                          const int *ly, int *counts, int N, int T, int U,
+                          int sT, bool beta_only) {
     dim3 threads(W);
     dim3 blocks((sT + W - 1) / W, 2 * U + 1, N);
 
     if (not beta_only) {
-        k_warp_alphas<<<blocks, threads>>>(alphas, f, g, den, ys, lx, ly,
-                                           counts, N, T, U, sT);
+        k_warp_alphas<<<blocks, threads>>>(alphas, f, g, ys, lx, ly, counts, N,
+                                           T, U, sT);
         CHECK_KERNEL_STAT("ctc-t simple forward alphas")
     }
 
-    k_warp_betas<<<blocks, threads>>>(betas, f, g, den, ys, lx, ly, counts, N,
-                                      T, U, sT);
+    k_warp_betas<<<blocks, threads>>>(betas, f, g, ys, lx, ly, counts, N, T, U,
+                                      sT);
     CHECK_KERNEL_STAT("ctc-t simple forward betas")
     return;
 }
 
 __global__ void k_fill_grad(float *grads, const float *f, const float *g,
-                            const float *den, const int *ys,
-                            const float *alphas, const float *betas,
-                            const int *lx, const int *ly, int T, int U,
-                            int sT) {
+                            const int *ys, const float *alphas,
+                            const float *betas, const int *lx, const int *ly,
+                            int T, int U, int sT) {
     // int i = blockIdx.x * blockDim.x + threadIdx.x;
     int t = blockIdx.x * blockDim.x + threadIdx.x;
     // s = 2u-1, s' = 2u
@@ -385,90 +383,15 @@ __global__ void k_fill_grad(float *grads, const float *f, const float *g,
 }
 
 void run_fill_grad_simple(float *grads, const float *f, const float *g,
-                          const float *den, const int *ys, const float *alphas,
+                          const int *ys, const float *alphas,
                           const float *betas, const int *lx, const int *ly,
                           int N, int T, int U, int sT) {
     dim3 threads(128, 8);
     dim3 blocks((T + 128 - 1) / 128, (U + 1 + 8 - 1) / 8, N);
 
-    k_fill_grad<<<blocks, threads>>>(grads, f, g, den, ys, alphas, betas, lx,
-                                     ly, T, U, sT);
+    k_fill_grad<<<blocks, threads>>>(grads, f, g, ys, alphas, betas, lx, ly, T,
+                                     U, sT);
 
     CHECK_KERNEL_STAT("ctc-t simple fill grads")
     return;
 }
-
-/*
-__global__ void kernel_warp_grad_den(volatile float *grad_den,
-                                     const float *alphas, const float *betas,
-                                     const float *f, const float *g,
-                                     const float *den, const int *lf,
-                                     const int *lg, unsigned int N,
-                                     unsigned int T, unsigned int U, int sT) {
-    unsigned int n = blockIdx.z;
-    unsigned int t = blockIdx.x * blockDim.x + threadIdx.x;
-    unsigned int u = blockIdx.y * blockDim.y + threadIdx.y;
-
-    if (t >= T || u >= U)
-        return;
-
-    grad_den += IDX3(n, t, u, T, U);
-    if (t >= lf[n] || u > lg[n]) {
-        // zero the paddings
-        *grad_den = 0.0f;
-        return;
-    }
-
-    int sU = 2 * (U - 1) + 1;
-    float llh = betas[IDX3(n, 0, 0, sT, sU)];
-    *grad_den = 0.0f;
-
-    // grad from blank row
-    int s = 2 * u;
-    int shift = (u == 0) ? 0 : (s / 2 + 1);
-    int i = t - shift;
-    int t_end = lf[n] - (2 * lg[n] - s) / 2;
-    if (t >= shift && t <= t_end) {
-        if (t < t_end)
-            *grad_den += expf(alphas[IDX3(n, i, s, sT, sU)] +
-                              betas[IDX3(n, i + 1, s, sT, sU)] +
-                              LOGPROBB(n, t, u, T, U) - llh);
-        if (t < lg[n])
-            *grad_den += exp(alphas[IDX3(n, i, s, sT, sU)] +
-                             betas[IDX3(n, i + (u > 0), s + 1, sT, sU)] +
-                             LOGPROBY(n, t, u, 2, T, U) - llh);
-    }
-
-    float p_zero;
-    float p_label;
-
-    if (t == lf[n] - 1) {
-        if (u == lg[n])
-            p_zero = LOG_PROB_BLANK(n, t, u);
-        else
-            p_zero = -std::numeric_limits<float>::infinity();
-    } else {
-        p_zero = LOG_PROB_BLANK(n, t, u) + betas[IDX3(n, t + 1, u, T, U)];
-    }
-
-    if (u == lg[n]) {
-        p_label = -std::numeric_limits<float>::infinity();
-    } else {
-        p_label = LOG_PROB_Y(n, t, u) + betas[IDX3(n, t, u + 1, T, U)];
-    }
-
-    *grad_den = expf(alphas[IDX3(n, t, u, T, U)] - betas[IDX3(n, 0, 0, T, U)] +
-                     logaddexpf(p_zero, p_label));
-}
-
-void run_fill_grad_den(volatile float *grad_den, const float *alphas,
-                       const float *betas, const float *f, const float *g,
-                       const float *den, const int *lf, const int *lg,
-                       unsigned int N, unsigned int T, unsigned int U) {
-    dim3 threads(W, W);
-    dim3 blocks((T + W - 1) / W, (U + W - 1) / W, N);
-    kernel_warp_grad_den<<<blocks, threads>>>(grad_den, alphas, betas, f, g,
-                                              den, lf, lg, N, T, U);
-    CHECK_KERNEL_STAT("rnnt simple loss computing gradients for denonimator.")
-}
-*/
